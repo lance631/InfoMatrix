@@ -61,3 +61,7 @@ logs/
 
 # Vercel
 .vercel/
+
+# Personal documentation (not for public repo)
+CLAUDE.md
+plan.md
