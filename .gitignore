@@ -65,3 +65,4 @@ logs/
 # Personal documentation (not for public repo)
 CLAUDE.md
 plan.md
+.claude/

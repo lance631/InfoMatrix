@@ -5,7 +5,9 @@ import json
 from datetime import datetime
 from typing import List, Dict, Optional
 from app.config import settings
+from app.services import db_service  # 通过 service 操作数据库
 import redis.asyncio as redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class RSSService:
     def __init__(self):
@@ -31,6 +33,7 @@ class RSSService:
         await self.init_redis()
         for feed in settings.RSS_FEEDS:
             self.feeds[feed["id"]] = feed
+            # 仅缓存，不写数据库
             await self.fetch_and_cache_feed(feed["id"])
         print(f"✓ 已加载 {len(self.feeds)} 个RSS源")
 
@@ -49,20 +52,37 @@ class RSSService:
         content = f"{blog_id}:{link}"
         return hashlib.md5(content.encode()).hexdigest()
 
-    async def fetch_and_cache_feed(self, blog_id: str) -> List[dict]:
-        """获取并缓存RSS源"""
+    async def fetch_and_cache_feed(
+        self,
+        blog_id: str,
+        session: Optional[AsyncSession] = None
+    ) -> List[dict]:
+        """获取RSS源并缓存/写入数据库"""
         if blog_id not in self.feeds:
             return []
 
         feed_info = self.feeds[blog_id]
         feed_data = await self.fetch_feed(feed_info["url"])
-
         if not feed_data:
             return []
 
         posts = []
-        for entry in feed_data.entries[:50]:  # 限制每个源50篇文章
+
+        # 先确保博客存在数据库
+        if session:
+            await db_service.create_blog_if_not_exists(
+                session=session,
+                blog_id=blog_id,
+                name=feed_info["name"],
+                rss_url=feed_info["url"],
+                category=feed_info.get("category"),
+                site_url=feed_info.get("site_url"),
+                description=feed_info.get("description")
+            )
+
+        for entry in feed_data.entries[:50]:
             post_id = self.generate_post_id(blog_id, entry.link)
+            published = self._parse_date(entry.get("published"))
 
             post = {
                 "id": post_id,
@@ -71,13 +91,28 @@ class RSSService:
                 "title": entry.title,
                 "link": entry.link,
                 "summary": entry.get("summary", ""),
-                "published": self._parse_date(entry.get("published")),
+                "content": entry.get("content", [{}])[0].get("value", "") if "content" in entry else "",
+                "published": published,
                 "author": entry.get("author"),
-                "category": feed_info["category"]
+                "category": feed_info.get("category")
             }
             posts.append(post)
 
-        # 缓存到Redis
+            # 写入数据库
+            if session:
+                await db_service.upsert_post(
+                    session=session,
+                    post_id=post_id,
+                    blog_id=blog_id,
+                    title=entry.title,
+                    link=entry.link,
+                    summary=entry.get("summary", ""),
+                    content=post["content"],
+                    published=published,
+                    author=entry.get("author")
+                )
+
+        # 缓存到 Redis
         if self.redis_client:
             cache_key = f"posts:{blog_id}"
             await self.redis_client.setex(
@@ -104,7 +139,6 @@ class RSSService:
                 return json.loads(cached)
             return await self.fetch_and_cache_feed(blog_id)
         else:
-            # 获取所有博客的文章
             all_posts = []
             for bid in self.feeds.keys():
                 cache_key = f"posts:{bid}"
@@ -113,11 +147,11 @@ class RSSService:
                     all_posts.extend(json.loads(cached))
             return all_posts
 
-    async def refresh_all_feeds(self) -> Dict[str, int]:
-        """刷新所有RSS源"""
+    async def refresh_all_feeds(self, session: Optional[AsyncSession] = None) -> Dict[str, int]:
+        """刷新所有RSS源，可写入数据库"""
         results = {}
         for blog_id in self.feeds.keys():
-            posts = await self.fetch_and_cache_feed(blog_id)
+            posts = await self.fetch_and_cache_feed(blog_id, session=session)
             results[blog_id] = len(posts)
         return results
 

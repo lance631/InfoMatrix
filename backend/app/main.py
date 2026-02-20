@@ -1,12 +1,29 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
 from app.routers import blogs, posts, health
 from app.config import settings
+from app.database import init_db, close_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    # Startup
+    await init_db()
+    from app.services.rss_service import rss_service
+    await rss_service.initialize_feeds()
+    yield
+    # Shutdown
+    await close_db()
+
 
 app = FastAPI(
     title="InfoMatrix API",
     description="技术博客RSS聚合器API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS配置
@@ -22,12 +39,6 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api", tags=["health"])
 app.include_router(blogs.router, prefix="/api/blogs", tags=["blogs"])
 app.include_router(posts.router, prefix="/api/posts", tags=["posts"])
-
-@app.on_event("startup")
-async def startup_event():
-    """启动时初始化RSS源"""
-    from app.services.rss_service import rss_service
-    await rss_service.initialize_feeds()
 
 @app.get("/")
 async def root():
