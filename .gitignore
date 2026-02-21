@@ -47,7 +47,8 @@ yarn-error.log*
 pnpm-debug.log*
 dist/
 dist-ssr/
-.output/           # TanStack Start build output
+.output
+
 
 # OS
 .DS_Store
