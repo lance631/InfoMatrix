@@ -25,12 +25,12 @@ export default function Header() {
 
   return (
     <>
-      <header className="p-4 flex items-center justify-between bg-background border-b shadow-sm">
+      <header className="sticky top-0 z-999 p-4 flex items-center justify-between bg-background border-b shadow-sm">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="p-2 hover:bg-accent rounded-lg transition-colors text-white  cursor-pointer"
+            className="p-2 hover:bg-accent rounded-lg transition-colors cursor-pointer text-white"
             aria-label="Open menu"
           >
             <Menu size={24} />
@@ -55,7 +55,7 @@ export default function Header() {
       </header>
 
       <aside
-        className={`fixed top-0 left-0 h-full w-80 bg-background shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col border-r ${
+        className={`fixed top-0 left-0 h-full w-80 bg-background shadow-2xl z-[60] transform transition-transform duration-300 ease-in-out flex flex-col border-r ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
