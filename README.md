@@ -1,31 +1,48 @@
-# InfoMatrix - 技术博客RSS聚合器
+# InfoMatrix - 技术博客 RSS 聚合器
 
-一个收集个人技术博客的RSS聚合应用，使用FastAPI + TanStack构建。
+一个收集个人技术博客的 RSS 聚合应用，使用 FastAPI + TanStack Start 构建。
 
 ## 项目架构
 
 ```
 InfoMatrix/
-├── backend/                 # Python后端 (Railway部署)
+├── backend/                 # Python 后端 (Railway 部署)
 │   ├── app/
-│   │   ├── main.py         # FastAPI应用入口
-│   │   ├── routers/        # API路由
+│   │   ├── main.py         # FastAPI 应用入口
+│   │   ├── routers/        # API 路由
+│   │   │   ├── health.py   # 健康检查
+│   │   │   ├── blogs.py    # 博客源管理
+│   │   │   ├── posts.py    # 文章获取
+│   │   │   └── featured.py # 精选文章
 │   │   ├── models/         # 数据模型
-│   │   ├── services/       # RSS解析和缓存服务
+│   │   │   ├── schemas.py  # Pydantic 模型
+│   │   │   └── database.py # SQLAlchemy ORM
+│   │   ├── services/       # 业务逻辑
+│   │   │   ├── rss_service.py   # RSS 解析
+│   │   │   └── db_service.py    # 数据库操作
 │   │   └── config.py       # 配置文件
 │   ├── requirements.txt
-│   ├── railway.json        # Railway配置
-│   └── Dockerfile          # Docker配置
+│   ├── railway.json        # Railway 配置
+│   └── Dockerfile          # Docker 配置
 │
-├── frontend/               # React前端 (Vercel部署)
-│   ├── src/
-│   │   ├── components/     # React组件
-│   │   ├── pages/          # 页面组件
-│   │   ├── hooks/          # 自定义hooks
-│   │   └── main.tsx        # 入口文件
+├── frontend/               # React 前端 (Vercel 部署)
+│   ├── app/
+│   │   ├── routes/        # 文件路由
+│   │   │   ├── __root.tsx    # 根布局
+│   │   │   └── index.tsx     # 首页
+│   │   ├── components/    # React 组件
+│   │   │   ├── ui/           # shadcn/ui 组件
+│   │   │   ├── Header.tsx    # 头部导航
+│   │   │   ├── PostCard.tsx  # 文章卡片
+│   │   │   └── FilterBar.tsx # 筛选栏
+│   │   ├── services/
+│   │   │   └── api.ts        # API 客户端
+│   │   └── styles.css     # 全局样式
+│   ├── public/            # 静态资源
+│   │   └── matrix-white.svg
 │   ├── package.json
-│   ├── vite.config.ts
-│   └── vercel.json         # Vercel配置
+│   ├── vite.config.ts     # Vite 配置
+│   └── vercel.json        # Vercel 配置
 │
 └── README.md
 ```
@@ -33,64 +50,70 @@ InfoMatrix/
 ## 技术栈
 
 ### 后端
-- **FastAPI**: 现代Python Web框架
-- **feedparser**: RSS/Atom解析
-- **httpx**: 异步HTTP客户端
-- **Redis**: RSS缓存（Railway免费Redis）
-- **uvicorn**: ASGI服务器
+- **FastAPI**: 现代异步 Python Web 框架
+- **SQLAlchemy 2.0**: 异步 ORM
+- **PostgreSQL**: 持久化存储（全文搜索）
+- **Redis**: 高性能缓存层（可选，支持降级）
+- **feedparser**: RSS/Atom 解析
+- **httpx**: 异步 HTTP 客户端
+- **Alembic**: 数据库迁移
 
 ### 前端
-- **React 18**: UI框架
-- **TanStack Query**: 数据获取和缓存
-- **TanStack Router**: 路由管理
-- **Vite**: 构建工具
-- **TailwindCSS**: 样式框架
+- **TanStack Start**: 全栈 React 框架（文件路由 + SSR）
+- **React 19**: UI 框架
+- **shadcn/ui**: 基于 Radix UI 的组件库
+- **TailwindCSS v4**: 实用优先的 CSS 框架（OKLCH 配色）
+- **Lucide React**: 图标库
+- **Vite 7**: 快速的构建工具
 
 ## 部署平台
 
 ### Railway (后端)
 - 免费额度: $5/月
 - 包括: 512MB RAM, 0.5GB CPU
-- 免费Redis: 10,000条命令/月
+- 免费 PostgreSQL 插件
+- 免费 Redis 插件（可选）
 
 ### Vercel (前端)
 - 免费额度: 无限
-- 包括: 100GB带宽/月
-- 自动HTTPS
+- 包括: 100GB 带宽/月
+- 自动 HTTPS
+- 边缘网络 CDN
 
 ## 本地开发
 
 ### 前置要求
 
 - **Python 3.9+** - 后端运行环境
-- **Node.js 18+** - 前端运行环境
+- **Node.js 22+** - 前端运行环境（Vite 7.x 要求）
+- **PostgreSQL** - 数据库（推荐 Docker）
 - **Redis** - 缓存服务（可选，不安装会降级运行）
 
 ### 1. 克隆项目
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/lance631/InfoMatrix.git
 cd InfoMatrix
 ```
 
-### 2. 安装 Redis（可选但推荐）
+### 2. 启动 PostgreSQL（推荐 Docker）
 
-**macOS:**
 ```bash
-brew install redis
-brew services start redis
+docker run -d \
+  --name infomatrix-postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=infomatrix \
+  -p 5432:5432 \
+  postgres:16-alpine
 ```
 
-**Ubuntu/Debian:**
-```bash
-sudo apt update
-sudo apt install redis-server
-sudo systemctl start redis
-```
+### 3. 启动 Redis（可选）
 
-**Docker (推荐):**
 ```bash
-docker run -d -p 6379:6379 redis:alpine
+docker run -d \
+  --name infomatrix-redis \
+  -p 6379:6379 \
+  redis:alpine
 ```
 
 验证 Redis 是否运行：
@@ -98,7 +121,7 @@ docker run -d -p 6379:6379 redis:alpine
 redis-cli ping  # 应返回 PONG
 ```
 
-### 3. 后端设置
+### 4. 后端设置
 
 ```bash
 cd backend
@@ -107,17 +130,17 @@ cd backend
 python3 -m venv venv
 
 # 激活虚拟环境
-# macOS/Linux:
 source venv/bin/activate
-# Windows:
-# venv\Scripts\activate
 
 # 安装依赖
 pip install -r requirements.txt
 
-# 配置环境变量（复制示例文件）
+# 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，配置 Redis URL 和其他设置
+# 编辑 .env 文件，配置数据库和 Redis URL
+
+# 运行数据库迁移
+alembic upgrade head
 
 # 启动后端服务
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -127,96 +150,135 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 查看 API 文档: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 4. 前端设置
+### 5. 前端设置
 
 打开新终端：
 
 ```bash
+# 使用 nvm 切换到 Node.js 22+
+nvm use 22
+
 cd frontend
 
-# 安装依赖
-npm install
+# 安装依赖（使用 pnpm）
+pnpm install
 
-# 配置环境变量（复制示例文件）
+# 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，设置 VITE_API_URL
+# 开发环境留空即可，使用 Vite 代理
 
 # 启动开发服务器
-npm run dev
+pnpm dev
 ```
 
-前端将运行在 [http://localhost:5173](http://localhost:5173)
-
-### 5. 使用启动脚本（可选）
-
-项目提供了快速启动脚本：
-
-```bash
-chmod +x start.sh
-./start.sh
-```
+前端将运行在 [http://localhost:3000](http://localhost:3000)
 
 ### 开发工作流
 
 **推荐方式：使用 VSCode 分屏终端**
 
-1. 保持当前 VSCode 窗口打开 `InfoMatrix` 目录
-2. 创建分屏终端（`Cmd + Shift + 5` 或点击终端右上角分屏图标）
-3. 左侧终端运行后端，右侧终端运行前端
-
-**启动命令：**
+1. 保持 VSCode 窗口打开 `InfoMatrix` 目录
+2. 创建分屏终端（`Cmd + Shift + 5`）
+3. 左侧运行后端，右侧运行前端
 
 ```bash
 # 终端 1 - 后端
 cd backend && source venv/bin/activate && uvicorn app.main:app --reload
 
 # 终端 2 - 前端
-cd frontend && npm run dev
+nvm use 22 && cd frontend && pnpm dev
 ```
 
 ### 环境变量配置
 
 #### 后端 (.env)
 ```bash
-# Redis配置（使用 Docker 运行的 Redis）
+# PostgreSQL 数据库
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/infomatrix
+
+# Redis 缓存（可选）
 REDIS_URL=redis://localhost:6379
 
 # 缓存时间（秒）
 CACHE_TTL=3600
 
-# CORS允许的源（逗号分隔）
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+# CORS 允许的源
+CORS_ORIGINS=http://localhost:3000
 
-# 端口
+# 服务器端口
 PORT=8000
 ```
 
 #### 前端 (.env)
 ```bash
-# 开发环境可以使用 Vite 代理，留空即可
+# 开发环境留空，使用 Vite 代理
 VITE_API_URL=
 
-# 生产环境需要设置完整的后端URL
+# 生产环境设置完整后端 URL
 # VITE_API_URL=https://your-backend.railway.app/api
 ```
 
 ### 常见问题
 
-**Q: Redis 连接失败怎么办？**
-A: 可以不使用 Redis 运行，系统会降级为直接获取 RSS，但性能会降低。建议使用 Docker 快速启动 Redis：
+**Q: Node.js 版本不兼容？**
+A: 前端使用 Vite 7.x，需要 Node.js 20.19+ 或 22.12+。使用 nvm 切换版本：
 ```bash
-docker run -d -p 6379:6379 redis:alpine
+nvm install 22
+nvm use 22
 ```
 
+**Q: PostgreSQL 连接失败？**
+A: 确保 Docker 容器正在运行：
+```bash
+docker ps | grep postgres
+```
+
+**Q: Redis 连接失败？**
+A: Redis 是可选的。不使用 Redis 时系统会降级为直接查询数据库，功能正常但性能略低。
+
 **Q: 前端无法连接后端？**
-A: 确保：
-1. 后端服务正在运行（访问 http://localhost:8000/api/health）
-2. 前端 .env 配置正确
-3. 检查 CORS 配置是否包含前端地址
+A: 确认：
+1. 后端正在运行（访问 http://localhost:8000/api/health）
+2. Vite 代理配置正确
+3. CORS 配置包含 `http://localhost:3000`
 
-## 部署步骤
+## 核心功能
 
-### 1. Railway部署后端
+### 文章聚合
+- 自动获取 RSS/Atom 订阅源
+- 幂等性设计（同一文章不重复）
+- 支持手动和定时刷新
+
+### 分类筛选
+- 按博客分类筛选文章
+- 支持多分类管理
+- 动态筛选切换
+
+### 精选文章
+- 管理员精选周文章
+- 支持编辑备注
+- 按周归档展示
+
+## API 端点
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| GET | `/api/health` | 健康检查 |
+| GET | `/api/blogs` | 获取所有博客源 |
+| GET | `/api/blogs/categories` | 获取分类列表 |
+| GET | `/api/posts` | 获取文章列表（支持筛选） |
+| POST | `/api/posts/refresh` | 手动刷新 RSS |
+| GET | `/api/posts/stats` | 获取统计信息 |
+| GET | `/api/posts/search` | 全文搜索文章 |
+| GET | `/api/featured` | 获取精选周列表 |
+| GET | `/api/featured/{week}` | 获取某周精选文章 |
+| POST | `/api/featured` | 添加精选文章 |
+| DELETE | `/api/featured/{id}` | 删除精选文章 |
+
+## 部署
+
+### Railway 部署后端
+
 ```bash
 cd backend
 railway login
@@ -224,34 +286,29 @@ railway init
 railway up
 ```
 
-### 2. Vercel部署前端
+在 Railway 控制台：
+1. 添加 PostgreSQL 插件
+2. 添加 Redis 插件（可选）
+3. 配置环境变量
+4. 获取后端 URL
+
+### Vercel 部署前端
+
 ```bash
 cd frontend
 vercel login
 vercel --prod
 ```
 
-## 环境变量
-
-### 后端 (.env)
+在 Vercel 控制台配置环境变量：
 ```
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=3600
-CORS_ORIGINS=https://your-domain.vercel.app
+VITE_API_URL=https://your-backend.railway.app/api
 ```
 
-### 前端 (.env)
+更新 Railway 的 CORS 设置：
 ```
-VITE_API_URL=https://your-backend.railway.app
+CORS_ORIGINS=https://your-frontend.vercel.app
 ```
-
-## API端点
-
-- `GET /api/blogs` - 获取所有博客列表
-- `GET /api/posts` - 获取聚合文章
-- `GET /api/posts?blog_id=xxx` - 获取特定博客文章
-- `GET /api/refresh` - 刷新RSS源
-- `GET /api/health` - 健康检查
 
 ## 许可证
 
