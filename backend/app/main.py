@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.routers import blogs, posts, health
+from app.routers import blogs, posts, health, featured
 from app.config import settings
 from app.database import init_db, close_db
 
@@ -37,8 +37,9 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(blogs.router, prefix="/api/blogs", tags=["blogs"])
-app.include_router(posts.router, prefix="/api/posts", tags=["posts"])
+app.include_router(blogs.router, prefix="/api/blogs")
+app.include_router(posts.router, prefix="/api/posts")
+app.include_router(featured.router, prefix="/api/featured")
 
 @app.get("/")
 async def root():

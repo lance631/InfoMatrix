@@ -1,21 +1,35 @@
+"""
+RSS feed fetching and parsing service.
+
+This service handles:
+- Fetching RSS/Atom feeds from configured sources
+- Parsing feed entries
+- Storing posts in PostgreSQL (idempotent)
+- Caching in Redis for fast reads
+"""
 import feedparser
 import httpx
 import hashlib
 import json
+import uuid as uuid_lib
 from datetime import datetime
 from typing import List, Dict, Optional
-from app.config import settings
-from app.services import db_service  # 通过 service 操作数据库
-import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.services import db_service
+import redis.asyncio as redis
+
+
 class RSSService:
+    """Service for fetching and caching RSS feeds."""
+
     def __init__(self):
         self.redis_client: Optional[redis.Redis] = None
-        self.feeds: Dict[str, dict] = {}
+        self.feeds: Dict[str, dict] = {}  # blog_id -> feed config
 
-    async def init_redis(self):
-        """初始化Redis连接"""
+    async def init_redis(self) -> None:
+        """Initialize Redis connection."""
         try:
             self.redis_client = redis.from_url(
                 settings.REDIS_URL,
@@ -23,52 +37,100 @@ class RSSService:
                 decode_responses=True
             )
             await self.redis_client.ping()
-            print("✓ Redis连接成功")
+            print("✓ Redis connected")
         except Exception as e:
-            print(f"✗ Redis连接失败: {e}")
+            print(f"✗ Redis connection failed: {e}")
             self.redis_client = None
 
-    async def initialize_feeds(self):
-        """初始化RSS源"""
+    async def initialize_feeds(self) -> None:
+        """Initialize RSS feeds from config and cache them."""
         await self.init_redis()
+
+        # Load feeds from config
         for feed in settings.RSS_FEEDS:
             self.feeds[feed["id"]] = feed
-            # 仅缓存，不写数据库
-            await self.fetch_and_cache_feed(feed["id"])
-        print(f"✓ 已加载 {len(self.feeds)} 个RSS源")
+
+        print(f"✓ Loaded {len(self.feeds)} RSS sources")
 
     async def fetch_feed(self, url: str) -> Optional[dict]:
-        """获取RSS源"""
+        """
+        Fetch an RSS feed from URL.
+
+        Args:
+            url: RSS feed URL
+
+        Returns:
+            Parsed feed data or None if failed
+        """
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(url)
+                response.raise_for_status()
                 return feedparser.parse(response.content)
             except Exception as e:
-                print(f"获取RSS源失败 {url}: {e}")
+                print(f"✗ Failed to fetch RSS feed {url}: {e}")
                 return None
 
-    def generate_post_id(self, blog_id: str, link: str) -> str:
-        """生成文章唯一ID"""
+    def generate_post_id(self, blog_id: str, link: str) -> uuid_lib.UUID:
+        """
+        Generate deterministic UUID for a post.
+
+        Uses MD5 hash of blog_id:link to ensure idempotency.
+        The same blog + link will always generate the same UUID.
+
+        Args:
+            blog_id: Blog identifier
+            link: Article URL
+
+        Returns:
+            UUID for the post
+        """
         content = f"{blog_id}:{link}"
-        return hashlib.md5(content.encode()).hexdigest()
+        hash_hex = hashlib.md5(content.encode()).hexdigest()
+        return uuid_lib.UUID(hex=hash_hex)
+
+    def generate_blog_id(self, feed_id: str) -> uuid_lib.UUID:
+        """
+        Generate deterministic UUID for a blog.
+
+        Uses MD5 hash of the feed_id from config.
+
+        Args:
+            feed_id: Feed identifier from config
+
+        Returns:
+            UUID for the blog
+        """
+        hash_hex = hashlib.md5(feed_id.encode()).hexdigest()
+        return uuid_lib.UUID(hex=hash_hex)
 
     async def fetch_and_cache_feed(
         self,
-        blog_id: str,
+        feed_id: str,
         session: Optional[AsyncSession] = None
     ) -> List[dict]:
-        """获取RSS源并缓存/写入数据库"""
-        if blog_id not in self.feeds:
+        """
+        Fetch RSS feed, store in database, and cache in Redis.
+
+        Args:
+            feed_id: Feed identifier from config
+            session: Optional database session for persistence
+
+        Returns:
+            List of post dictionaries
+        """
+        if feed_id not in self.feeds:
             return []
 
-        feed_info = self.feeds[blog_id]
+        feed_info = self.feeds[feed_id]
         feed_data = await self.fetch_feed(feed_info["url"])
         if not feed_data:
             return []
 
-        posts = []
+        # Generate blog UUID
+        blog_id = self.generate_blog_id(feed_id)
 
-        # 先确保博客存在数据库
+        # Ensure blog exists in database
         if session:
             await db_service.create_blog_if_not_exists(
                 session=session,
@@ -80,25 +142,30 @@ class RSSService:
                 description=feed_info.get("description")
             )
 
+        posts = []
+
         for entry in feed_data.entries[:50]:
-            post_id = self.generate_post_id(blog_id, entry.link)
+            if not hasattr(entry, 'link'):
+                continue
+
+            post_id = self.generate_post_id(feed_id, entry.link)
             published = self._parse_date(entry.get("published"))
 
             post = {
-                "id": post_id,
-                "blog_id": blog_id,
+                "id": str(post_id),
+                "blog_id": str(blog_id),
                 "blog_name": feed_info["name"],
                 "title": entry.title,
                 "link": entry.link,
                 "summary": entry.get("summary", ""),
-                "content": entry.get("content", [{}])[0].get("value", "") if "content" in entry else "",
+                "content": self._extract_content(entry),
                 "published": published,
                 "author": entry.get("author"),
                 "category": feed_info.get("category")
             }
             posts.append(post)
 
-            # 写入数据库
+            # Store in database
             if session:
                 await db_service.upsert_post(
                     session=session,
@@ -108,75 +175,124 @@ class RSSService:
                     link=entry.link,
                     summary=entry.get("summary", ""),
                     content=post["content"],
-                    published=published,
+                    published_at=published,
                     author=entry.get("author")
                 )
 
-        # 缓存到 Redis
+        # Cache in Redis
         if self.redis_client:
-            cache_key = f"posts:{blog_id}"
+            cache_key = f"posts:{feed_id}"
             await self.redis_client.setex(
                 cache_key,
                 settings.CACHE_TTL,
                 json.dumps(posts, default=str)
             )
 
-            # 缓存所有文章ID的集合
-            for post in posts:
-                await self.redis_client.sadd("posts:all", post["id"])
-
         return posts
 
-    async def get_cached_posts(self, blog_id: Optional[str] = None) -> List[dict]:
-        """获取缓存的文章"""
-        if not self.redis_client:
-            return await self.fetch_and_cache_feed(blog_id) if blog_id else []
+    def _extract_content(self, entry) -> str:
+        """Extract content from RSS entry."""
+        if hasattr(entry, 'content') and entry.content:
+            return entry.content[0].get('value', '')
+        if hasattr(entry, 'summary'):
+            return entry.summary
+        return ""
 
-        if blog_id:
-            cache_key = f"posts:{blog_id}"
+    async def get_cached_posts(self, feed_id: Optional[str] = None) -> List[dict]:
+        """
+        Get posts from cache or fetch if not cached.
+
+        Args:
+            feed_id: Optional feed ID to filter by
+
+        Returns:
+            List of post dictionaries
+        """
+        if not self.redis_client:
+            # Fallback: fetch directly (without session = no DB storage)
+            if feed_id:
+                return await self.fetch_and_cache_feed(feed_id)
+            return []
+
+        if feed_id:
+            cache_key = f"posts:{feed_id}"
             cached = await self.redis_client.get(cache_key)
             if cached:
                 return json.loads(cached)
-            return await self.fetch_and_cache_feed(blog_id)
+            return await self.fetch_and_cache_feed(feed_id)
         else:
+            # Get all posts from cache
             all_posts = []
-            for bid in self.feeds.keys():
-                cache_key = f"posts:{bid}"
+            for fid in self.feeds.keys():
+                cache_key = f"posts:{fid}"
                 cached = await self.redis_client.get(cache_key)
                 if cached:
                     all_posts.extend(json.loads(cached))
             return all_posts
 
-    async def refresh_all_feeds(self, session: Optional[AsyncSession] = None) -> Dict[str, int]:
-        """刷新所有RSS源，可写入数据库"""
+    async def refresh_all_feeds(
+        self,
+        session: Optional[AsyncSession] = None
+    ) -> Dict[str, int]:
+        """
+        Refresh all RSS feeds.
+
+        Args:
+            session: Optional database session for persistence
+
+        Returns:
+            Dictionary mapping feed_id to post count
+        """
         results = {}
-        for blog_id in self.feeds.keys():
-            posts = await self.fetch_and_cache_feed(blog_id, session=session)
-            results[blog_id] = len(posts)
+        for feed_id in self.feeds.keys():
+            posts = await self.fetch_and_cache_feed(feed_id, session=session)
+            results[feed_id] = len(posts)
         return results
 
     def get_all_blogs(self) -> List[dict]:
-        """获取所有博客源"""
+        """Get all blog source configurations."""
         return list(self.feeds.values())
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
-        """解析日期"""
+    def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
+        """
+        Parse date string to datetime.
+
+        Handles various RSS date formats.
+
+        Args:
+            date_str: Date string from RSS feed
+
+        Returns:
+            datetime object or None
+        """
         if not date_str:
             return None
-        try:
-            dt = datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %z")
-            return dt.isoformat()
-        except:
-            return date_str
+
+        # Try common formats
+        formats = [
+            "%a, %d %b %Y %H:%M:%S %z",  # RFC 2822
+            "%a, %d %b %Y %H:%M:%S %Z",  # RFC 2822 without numeric timezone
+            "%Y-%m-%dT%H:%M:%S%z",       # ISO 8601
+            "%Y-%m-%dT%H:%M:%SZ",        # ISO 8601 UTC
+            "%Y-%m-%d %H:%M:%S",         # Simple format
+        ]
+
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except (ValueError, TypeError):
+                continue
+
+        return None
 
     async def get_stats(self) -> dict:
-        """获取统计信息"""
-        all_posts = await self.get_cached_posts()
+        """Get RSS service statistics."""
         return {
-            "total_blogs": len(self.feeds),
-            "total_posts": len(all_posts),
-            "redis_connected": self.redis_client is not None
+            "total_feeds": len(self.feeds),
+            "redis_connected": self.redis_client is not None,
+            "cache_ttl": settings.CACHE_TTL
         }
 
-# 全局实例
+
+# Global instance
 rss_service = RSSService()

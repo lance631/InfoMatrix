@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 
 from app.config import settings
 
@@ -80,7 +81,7 @@ async def init_db() -> None:
     try:
         async with engine.begin() as conn:
             # Test connection
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         print("✓ Database connected successfully")
     except Exception as e:
         print(f"✗ Database connection failed: {e}")
