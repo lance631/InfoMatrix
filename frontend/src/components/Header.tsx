@@ -28,8 +28,9 @@ export default function Header() {
       <header className="p-4 flex items-center justify-between bg-background border-b shadow-sm">
         <div className="flex items-center gap-4">
           <button
+            type="button"
             onClick={() => setIsOpen(true)}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
+            className="p-2 hover:bg-accent rounded-lg transition-colors text-white  cursor-pointer"
             aria-label="Open menu"
           >
             <Menu size={24} />
@@ -37,7 +38,7 @@ export default function Header() {
           <h1 className="text-xl font-bold">
             <Link to="/" className="flex items-center gap-2">
               <img src="/matrix-white.svg" alt="InfoMatrix Logo" className="h-6 w-auto" />
-              <span className="text-primary">Info</span>Matrix
+              <span className="text-primary">InfoMatrix</span>
             </Link>
           </h1>
         </div>
