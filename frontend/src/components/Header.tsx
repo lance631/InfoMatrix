@@ -36,6 +36,7 @@ export default function Header() {
           </button>
           <h1 className="text-xl font-bold">
             <Link to="/" className="flex items-center gap-2">
+              <img src="/matrix-white.svg" alt="InfoMatrix Logo" className="h-6 w-auto" />
               <span className="text-primary">Info</span>Matrix
             </Link>
           </h1>
