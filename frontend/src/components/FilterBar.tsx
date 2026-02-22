@@ -21,13 +21,14 @@ export default function FilterBar({
     <div className="flex flex-wrap items-center gap-3 p-4 bg-card border-b">
       <div className="flex items-center gap-2">
         <Filter className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Filters:</span>
+        <span className="text-sm font-medium text-muted-foreground">Filters:</span>
       </div>
 
       {selectedBlog && (
         <Badge variant="secondary" className="gap-1">
           Blog: {selectedBlog}
           <button
+            type="button"
             onClick={onBlogClear}
             className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
           >
@@ -49,6 +50,11 @@ export default function FilterBar({
             key={category}
             variant={selectedCategory === category ? 'default' : 'outline'}
             size="sm"
+            className={
+    selectedCategory === category
+      ? ''
+      : 'bg-muted text-muted-foreground hover:bg-muted/80 cursor-pointer'
+  }
             onClick={() => onCategoryChange(category)}
           >
             {category}

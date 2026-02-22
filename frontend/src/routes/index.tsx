@@ -57,7 +57,7 @@ function HomePage() {
     : posts
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full flex flex-col bg-background">
       <FilterBar
         selectedBlog={blog_id || null}
         selectedCategory={selectedCategory}
@@ -66,7 +66,7 @@ function HomePage() {
         onCategoryChange={setSelectedCategory}
       />
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="flex-1 overflow-y-auto container mx-auto px-4 py-6">
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
