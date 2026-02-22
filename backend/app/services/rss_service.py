@@ -159,13 +159,17 @@ class RSSService:
             raw_content = self._extract_content(entry)
 
             # Apply source-specific formatting
+            has_thumbnail = thumbnail is not None
+
             if feed_id == "infoq":
-                formatted_summary, formatted_author = self._format_infoq_content(raw_summary)
+                formatted_summary, formatted_author = self._format_infoq_content(raw_summary, has_thumbnail)
             elif feed_id == "vercel":
-                formatted_summary, _ = self._format_vercel_content(raw_summary, raw_content)
+                formatted_summary, _ = self._format_vercel_content(raw_summary, raw_content, has_thumbnail)
                 formatted_author = entry.get("author")
             else:
-                formatted_summary = raw_summary[:500] if raw_summary else ""
+                # Default formatting based on thumbnail
+                max_length = 300 if has_thumbnail else 600
+                formatted_summary = raw_summary[:max_length] if raw_summary else ""
                 formatted_author = entry.get("author")
 
             post = {
@@ -263,7 +267,7 @@ class RSSService:
 
         return None
 
-    def _format_infoq_content(self, content: str) -> tuple[str, Optional[str]]:
+    def _format_infoq_content(self, content: str, has_thumbnail: bool = True) -> tuple[str, Optional[str]]:
         """
         Format InfoQ RSS content.
 
@@ -271,9 +275,11 @@ class RSSService:
         - Extract <p> tag content for summary (excluding img tags)
         - Extract <i> tag content for author (format: <i>By Author Name</i>)
         - Remove <img> tags from summary since we use thumbnails
+        - Adjust length based on whether post has thumbnail
 
         Args:
             content: Raw HTML content from InfoQ RSS
+            has_thumbnail: Whether post has a thumbnail image
 
         Returns:
             Tuple of (formatted_summary, author)
@@ -303,14 +309,17 @@ class RSSService:
             if p_text and len(p_text) > 10:
                 summary_parts.append(p_text)
 
-        # Join paragraphs and limit length
+        # Join paragraphs
         summary = ' '.join(summary_parts)
-        if len(summary) > 500:
-            summary = summary[:500] + '...'
+
+        # Adjust length based on thumbnail
+        max_length = 300 if has_thumbnail else 600
+        if len(summary) > max_length:
+            summary = summary[:max_length] + '...'
 
         return summary, author
 
-    def _format_vercel_content(self, summary: str, content: str) -> tuple[str, Optional[str]]:
+    def _format_vercel_content(self, summary: str, content: str, has_thumbnail: bool = False) -> tuple[str, Optional[str]]:
         """
         Format Vercel Blog RSS content.
 
@@ -318,10 +327,12 @@ class RSSService:
         - Preserve HTML formatting for rich text display
         - Extract author from entry (already provided by RSS)
         - Clean up unwanted patterns but keep structure
+        - Adjust length based on whether post has thumbnail
 
         Args:
             summary: Raw HTML summary from Vercel RSS
             content: Full HTML content from Vercel RSS
+            has_thumbnail: Whether post has a thumbnail image
 
         Returns:
             Tuple of (formatted_summary, author)
@@ -341,7 +352,13 @@ class RSSService:
 
         # Strip and limit length (keep HTML)
         cleaned_html = cleaned_html.strip()
-        if len(cleaned_html) > 1000:
+
+        # Adjust length based on thumbnail
+        # With thumbnail: shorter (since image takes space)
+        # Without thumbnail: longer (more text content)
+        max_length = 500 if has_thumbnail else 1200
+
+        if len(cleaned_html) > max_length:
             # Try to cut at a paragraph boundary
             paragraphs = cleaned_html.split('</p>')
             result = []
@@ -351,12 +368,12 @@ class RSSService:
                 if not p:
                     continue
                 p_with_tag = p + '</p>'
-                if current_length + len(p_with_tag) > 1000:
+                if current_length + len(p_with_tag) > max_length:
                     break
                 result.append(p_with_tag)
                 current_length += len(p_with_tag)
             cleaned_html = ''.join(result)
-            if current_length > 950:
+            if current_length > max_length - 50:
                 cleaned_html += '...'
 
         # Author is already extracted from entry.author in the caller
