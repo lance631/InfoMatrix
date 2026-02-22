@@ -45,9 +45,15 @@ class Settings(BaseSettings):
             "category": "技术"
         },
         {
-            "id": "huggingface",
-            "name": "Hugging Face Blog",
-            "url": "https://huggingface.co/blog/feed.xml",
+            "id": "openAI",
+            "name": "OpenAI News",
+            "url": "https://openai.com/news/rss.xml",
+            "category": "AI"
+        },
+         {
+            "id": "vercel",
+            "name": "Vercel Blog",
+            "url": "https://vercel.com/atom",
             "category": "AI"
         },
         {
@@ -58,7 +64,7 @@ class Settings(BaseSettings):
         },
         {
             "id": "infoq",
-            "name": "Facilitating the Spread of Knowledge and Innovation in Professional Software Development",
+            "name": "infoQ",
             "url": "https://feed.infoq.com/",
             "category": "技术"
         }
