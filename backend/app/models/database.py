@@ -42,6 +42,7 @@ class Post(Base):
     link = Column(String, nullable=False)
     summary = Column(Text)
     content = Column(Text)  # Full article content
+    thumbnail = Column(String)  # Thumbnail image URL extracted from content
     author = Column(String)
     published_at = Column(DateTime(timezone=True))
     tsv = Column(TSVECTOR)  # Full-text search vector

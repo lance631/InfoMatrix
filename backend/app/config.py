@@ -54,12 +54,12 @@ class Settings(BaseSettings):
             "id": "github",
             "name": "GitHub Blog",
             "url": "https://github.blog/feed/",
-            "category": "工程"
+            "category": "技术"
         },
         {
-            "id": "feedburner-ruanyifeng",
-            "name": "阮一峰的网络日志 (FeedBurner)",
-            "url": "http://feeds.feedburner.com/ruanyifeng",
+            "id": "infoq",
+            "name": "Facilitating the Spread of Knowledge and Innovation in Professional Software Development",
+            "url": "https://feed.infoq.com/",
             "category": "技术"
         }
     ]

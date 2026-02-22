@@ -20,6 +20,7 @@ export interface Post {
   link: string;
   summary: string | null;
   content: string | null;
+  thumbnail: string | null;
   published: string | null;
   author: string | null;
   category: string;

@@ -18,7 +18,21 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
+    <Card className="h-full flex flex-col hover:shadow-lg transition-shadow overflow-hidden">
+      {post.thumbnail && (
+        <div className="relative w-full h-48 overflow-hidden bg-muted">
+          <img
+            src={post.thumbnail}
+            alt={post.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={(e) => {
+              // Hide image on error
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        </div>
+      )}
       <CardHeader>
         <div className="flex items-start justify-between gap-2 mb-2">
           <Badge variant="secondary">{post.category}</Badge>

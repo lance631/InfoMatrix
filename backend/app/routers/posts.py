@@ -31,6 +31,7 @@ class PostResponse(BaseModel):
     link: str
     summary: str | None
     content: str | None
+    thumbnail: str | None
     published: datetime | None
     author: str | None
     category: str | None
@@ -109,6 +110,7 @@ async def get_posts(
             link=post.link,
             summary=post.summary,
             content=post.content,
+            thumbnail=post.thumbnail,
             published=post.published_at,
             author=post.author,
             category=post.blog.category
@@ -189,6 +191,7 @@ async def search_posts(
             link=post.link,
             summary=post.summary,
             content=post.content,
+            thumbnail=post.thumbnail,
             published=post.published_at,
             author=post.author,
             category=post.blog.category

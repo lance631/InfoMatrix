@@ -145,6 +145,7 @@ async def upsert_post(
     link: str,
     summary: Optional[str] = None,
     content: Optional[str] = None,
+    thumbnail: Optional[str] = None,
     author: Optional[str] = None,
     published_at: Optional[datetime] = None
 ) -> Post:
@@ -162,6 +163,7 @@ async def upsert_post(
         existing.title = title
         existing.summary = summary
         existing.content = content
+        existing.thumbnail = thumbnail
         existing.author = author
         existing.published_at = published_at
         existing.updated_at = datetime.utcnow()
@@ -179,6 +181,7 @@ async def upsert_post(
             link=link,
             summary=summary,
             content=content,
+            thumbnail=thumbnail,
             author=author,
             published_at=published_at
         )

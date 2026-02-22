@@ -16,6 +16,7 @@ class BlogPost(BaseModel):
     title: str
     link: str
     summary: str
+    thumbnail: Optional[str] = None
     published: Optional[datetime] = None
     author: Optional[str] = None
     category: str

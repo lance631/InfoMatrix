@@ -4,6 +4,7 @@ RSS feed fetching and parsing service.
 This service handles:
 - Fetching RSS/Atom feeds from configured sources
 - Parsing feed entries
+- Extracting thumbnail images from content
 - Storing posts in PostgreSQL (idempotent)
 - Caching in Redis for fast reads
 """
@@ -11,6 +12,7 @@ import feedparser
 import httpx
 import hashlib
 import json
+import re
 import uuid as uuid_lib
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -150,6 +152,7 @@ class RSSService:
 
             post_id = self.generate_post_id(feed_id, entry.link)
             published = self._parse_date(entry.get("published"))
+            thumbnail = self._extract_thumbnail(entry)
 
             post = {
                 "id": str(post_id),
@@ -159,6 +162,7 @@ class RSSService:
                 "link": entry.link,
                 "summary": entry.get("summary", ""),
                 "content": self._extract_content(entry),
+                "thumbnail": thumbnail,
                 "published": published,
                 "author": entry.get("author"),
                 "category": feed_info.get("category")
@@ -175,6 +179,7 @@ class RSSService:
                     link=entry.link,
                     summary=entry.get("summary", ""),
                     content=post["content"],
+                    thumbnail=thumbnail,
                     published_at=published,
                     author=entry.get("author")
                 )
@@ -197,6 +202,52 @@ class RSSService:
         if hasattr(entry, 'summary'):
             return entry.summary
         return ""
+
+    def _extract_thumbnail(self, entry) -> Optional[str]:
+        """
+        Extract thumbnail URL from RSS entry.
+
+        Tries multiple sources:
+        1. media_thumbnail field
+        2. media_content field
+        3. First <img> tag in content/summary
+
+        Args:
+            entry: Feedparser entry object
+
+        Returns:
+            Thumbnail URL or None
+        """
+        # Try media_thumbnail
+        if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+            return entry.media_thumbnail[0].get('url')
+
+        # Try media_content
+        if hasattr(entry, 'media_content') and entry.media_content:
+            for media in entry.media_content:
+                if media.get('type', '').startswith('image/'):
+                    return media.get('url')
+
+        # Extract from content
+        content = self._extract_content(entry)
+        if content:
+            # Try multiple img tag patterns
+            patterns = [
+                r'<img[^>]+src="([^"]+)"',  # Double quotes
+                r"<img[^>]+src='([^']+)'",  # Single quotes
+            ]
+
+            for pattern in patterns:
+                match = re.search(pattern, content)
+                if match:
+                    img_url = match.group(1)
+                    # Clean URL (remove query params and fragments)
+                    img_url = img_url.split('?')[0].split('#')[0]
+                    # Verify it's an image
+                    if any(ext in img_url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']):
+                        return img_url
+
+        return None
 
     async def get_cached_posts(self, feed_id: Optional[str] = None) -> List[dict]:
         """
