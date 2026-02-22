@@ -39,22 +39,28 @@ class Settings(BaseSettings):
     # RSS源列表（可以从环境变量或数据库读取）
     RSS_FEEDS: List[dict] = [
         {
-            "id": "阮一峰",
+            "id": "ruanyifeng",
             "name": "阮一峰的网络日志",
             "url": "https://www.ruanyifeng.com/blog/atom.xml",
             "category": "技术"
         },
         {
-            "id": "v2ex",
-            "name": "V2EX",
-            "url": "https://www.v2ex.com/index.xml",
-            "category": "综合"
+            "id": "huggingface",
+            "name": "Hugging Face Blog",
+            "url": "https://huggingface.co/blog/feed.xml",
+            "category": "AI"
         },
         {
-            "id": "juejin",
-            "name": "掘金前端",
-            "url": "https://frontendjs.org/feed.xml",
-            "category": "前端"
+            "id": "github",
+            "name": "GitHub Blog",
+            "url": "https://github.blog/feed/",
+            "category": "工程"
+        },
+        {
+            "id": "feedburner-ruanyifeng",
+            "name": "阮一峰的网络日志 (FeedBurner)",
+            "url": "http://feeds.feedburner.com/ruanyifeng",
+            "category": "技术"
         }
     ]
 
