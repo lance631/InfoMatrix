@@ -1,7 +1,7 @@
 import type { Post } from '@/services/api'
 import { Card, CardContent, CardFooter, CardHeader } from './ui/card'
 import { Badge } from './ui/badge'
-import { ExternalLink, Calendar } from 'lucide-react'
+import { ExternalLink, Calendar, User } from 'lucide-react'
 
 interface PostCardProps {
   post: Post
@@ -36,12 +36,20 @@ export default function PostCard({ post }: PostCardProps) {
       <CardHeader>
         <div className="flex items-start justify-between gap-2 mb-2">
           <Badge variant="secondary">{post.category}</Badge>
-          {post.published && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              {formatDate(post.published)}
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {post.author && (
+              <div className="flex items-center gap-1">
+                <User className="w-3 h-3" />
+                <span className="truncate max-w-[120px]">{post.author}</span>
+              </div>
+            )}
+            {post.published && (
+              <div className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {formatDate(post.published)}
+              </div>
+            )}
+          </div>
         </div>
         <h3 className="text-lg font-semibold leading-tight line-clamp-2">
           {post.title}
