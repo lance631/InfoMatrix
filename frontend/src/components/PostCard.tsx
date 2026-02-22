@@ -60,9 +60,10 @@ export default function PostCard({ post }: PostCardProps) {
       </CardHeader>
       <CardContent className="flex-1">
         {post.summary && (
-          <p className="text-sm text-muted-foreground line-clamp-3">
-            {post.summary}
-          </p>
+          <div
+            className="text-sm text-muted-foreground line-clamp-3 prose-content max-w-none"
+            dangerouslySetInnerHTML={{ __html: post.summary }}
+          />
         )}
       </CardContent>
       <CardFooter>

@@ -89,3 +89,44 @@ body {
   bottom: 0;
 }
 
+/* HTML content styling for RSS summaries */
+.prose-content {
+  line-height: 1.6;
+}
+
+.prose-content p {
+  margin-bottom: 0.5em;
+}
+
+.prose-content a {
+  color: oklch(var(--color-primary));
+  text-decoration: underline;
+}
+
+.prose-content a:hover {
+  text-decoration: none;
+}
+
+.prose-content strong,
+.prose-content b {
+  font-weight: 600;
+}
+
+.prose-content em,
+.prose-content i {
+  font-style: italic;
+}
+
+.prose-content code {
+  background-color: oklch(var(--color-muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.prose-content ul,
+.prose-content ol {
+  margin-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+

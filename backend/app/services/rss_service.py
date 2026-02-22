@@ -161,6 +161,9 @@ class RSSService:
             # Apply source-specific formatting
             if feed_id == "infoq":
                 formatted_summary, formatted_author = self._format_infoq_content(raw_summary)
+            elif feed_id == "vercel":
+                formatted_summary, _ = self._format_vercel_content(raw_summary, raw_content)
+                formatted_author = entry.get("author")
             else:
                 formatted_summary = raw_summary[:500] if raw_summary else ""
                 formatted_author = entry.get("author")
@@ -306,6 +309,58 @@ class RSSService:
             summary = summary[:500] + '...'
 
         return summary, author
+
+    def _format_vercel_content(self, summary: str, content: str) -> tuple[str, Optional[str]]:
+        """
+        Format Vercel Blog RSS content.
+
+        Vercel specific formatting:
+        - Preserve HTML formatting for rich text display
+        - Extract author from entry (already provided by RSS)
+        - Clean up unwanted patterns but keep structure
+
+        Args:
+            summary: Raw HTML summary from Vercel RSS
+            content: Full HTML content from Vercel RSS
+
+        Returns:
+            Tuple of (formatted_summary, author)
+        """
+        # Prefer content over summary for more complete text
+        raw_html = content if content else summary
+
+        if not raw_html:
+            return "", None
+
+        # Remove unwanted patterns like "Read more →", "Continue reading", etc.
+        cleaned_html = re.sub(r'Read more\s*[→|]+.*$', '', raw_html, flags=re.IGNORECASE)
+        cleaned_html = re.sub(r'Continue reading.*$', '', cleaned_html, flags=re.IGNORECASE)
+
+        # Clean up extra whitespace but keep HTML structure
+        cleaned_html = re.sub(r'\s+', ' ', cleaned_html)
+
+        # Strip and limit length (keep HTML)
+        cleaned_html = cleaned_html.strip()
+        if len(cleaned_html) > 1000:
+            # Try to cut at a paragraph boundary
+            paragraphs = cleaned_html.split('</p>')
+            result = []
+            current_length = 0
+            for p in paragraphs:
+                p = p.strip()
+                if not p:
+                    continue
+                p_with_tag = p + '</p>'
+                if current_length + len(p_with_tag) > 1000:
+                    break
+                result.append(p_with_tag)
+                current_length += len(p_with_tag)
+            cleaned_html = ''.join(result)
+            if current_length > 950:
+                cleaned_html += '...'
+
+        # Author is already extracted from entry.author in the caller
+        return cleaned_html, None
 
     async def get_cached_posts(self, feed_id: Optional[str] = None) -> List[dict]:
         """
