@@ -154,17 +154,28 @@ class RSSService:
             published = self._parse_date(entry.get("published"))
             thumbnail = self._extract_thumbnail(entry)
 
+            # Extract raw content
+            raw_summary = entry.get("summary", "")
+            raw_content = self._extract_content(entry)
+
+            # Apply source-specific formatting
+            if feed_id == "infoq":
+                formatted_summary, formatted_author = self._format_infoq_content(raw_summary)
+            else:
+                formatted_summary = raw_summary[:500] if raw_summary else ""
+                formatted_author = entry.get("author")
+
             post = {
                 "id": str(post_id),
                 "blog_id": str(blog_id),
                 "blog_name": feed_info["name"],
                 "title": entry.title,
                 "link": entry.link,
-                "summary": entry.get("summary", ""),
-                "content": self._extract_content(entry),
+                "summary": formatted_summary,
+                "content": raw_content,
                 "thumbnail": thumbnail,
                 "published": published,
-                "author": entry.get("author"),
+                "author": formatted_author,
                 "category": feed_info.get("category")
             }
             posts.append(post)
@@ -177,11 +188,11 @@ class RSSService:
                     blog_id=blog_id,
                     title=entry.title,
                     link=entry.link,
-                    summary=entry.get("summary", ""),
-                    content=post["content"],
+                    summary=formatted_summary,
+                    content=raw_content,
                     thumbnail=thumbnail,
                     published_at=published,
-                    author=entry.get("author")
+                    author=formatted_author
                 )
 
         # Cache in Redis
@@ -248,6 +259,53 @@ class RSSService:
                         return img_url
 
         return None
+
+    def _format_infoq_content(self, content: str) -> tuple[str, Optional[str]]:
+        """
+        Format InfoQ RSS content.
+
+        InfoQ specific formatting:
+        - Extract <p> tag content for summary (excluding img tags)
+        - Extract <i> tag content for author (format: <i>By Author Name</i>)
+        - Remove <img> tags from summary since we use thumbnails
+
+        Args:
+            content: Raw HTML content from InfoQ RSS
+
+        Returns:
+            Tuple of (formatted_summary, author)
+        """
+        if not content:
+            return "", None
+
+        # Extract author from <i> tags (format: <i>By Author Name</i>)
+        author = None
+        i_matches = re.findall(r'<i>\s*By\s+(.*?)</i>', content, re.DOTALL)
+        if i_matches:
+            author = i_matches[0].strip()
+
+        # Extract content from <p> tags
+        p_matches = re.findall(r'<p>(.*?)</p>', content, re.DOTALL)
+        summary_parts = []
+
+        for p_content in p_matches:
+            # Remove <img> tags from paragraph
+            p_without_img = re.sub(r'<img[^>]*>', '', p_content)
+            # Remove other HTML tags (like <a>, <strong>, etc.)
+            p_text = re.sub(r'<[^>]+>', '', p_without_img)
+            # Clean up whitespace
+            p_text = ' '.join(p_text.split())
+
+            # Only include non-empty paragraphs
+            if p_text and len(p_text) > 10:
+                summary_parts.append(p_text)
+
+        # Join paragraphs and limit length
+        summary = ' '.join(summary_parts)
+        if len(summary) > 500:
+            summary = summary[:500] + '...'
+
+        return summary, author
 
     async def get_cached_posts(self, feed_id: Optional[str] = None) -> List[dict]:
         """
